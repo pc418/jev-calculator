@@ -1,0 +1,12 @@
+# owner 2026-09-22: dotfiles/dirs, docs/ and markdown stay local; README, this file and the prompt source are the exceptions
+/.*
+!/.gitignore
+!/.dev.vars.example
+docs/
+*.md
+!/README.md
+!/prompts/jev-prompts.md
+skills-lock.json
+node_modules/
+dist/
+worker-configuration.d.ts

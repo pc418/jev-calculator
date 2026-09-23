@@ -1,0 +1,10 @@
+# Copy to .dev.vars (gitignored) for `wrangler dev`. Names only; put your own values in.
+JEV_API_KEY=your-vercel-ai-gateway-key
+# Optional: direct TypeSafe fallback. Leave unset to disable the fallback route.
+# TYPESAFE_API_KEY=your-typesafe-key
+# Cloudflare Turnstile always-pass TEST keys (public): the widget passes without a challenge and
+# siteverify reports hostname example.com, hence TURNSTILE_HOSTNAMES below.
+TURNSTILE_SITEKEY=1x00000000000000000000AA
+TURNSTILE_SECRET=1x0000000000000000000000000000000AA
+TURNSTILE_HOSTNAMES=example.com
+PASS_SECRET=dev-only-pass-secret

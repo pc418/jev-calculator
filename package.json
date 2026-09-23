@@ -1,0 +1,32 @@
+{
+  "name": "jev-calculator",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "test": "vitest run",
+    "pretypecheck": "wrangler types",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json --noEmit",
+    "types": "wrangler types",
+    "prompts": "node scripts/sync-prompts.mjs",
+    "pretest": "node scripts/sync-prompts.mjs",
+    "prebuild": "node scripts/sync-prompts.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20260921.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.136.1"
+  },
+  "allowScripts": {
+    "workerd@1.20260815.1": true,
+    "workerd@1.20260921.1": true,
+    "fsevents@2.3.3": true
+  }
+}

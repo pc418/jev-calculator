@@ -1,0 +1,36 @@
+{
+  "model": "typesafe-ai/jev",
+  "answers": {
+    "next_char": {
+      "type": "choice",
+      "choice": "7",
+      "confidence": 0.36,
+      "probabilities": {
+        "0": 0.01,
+        "1": 0.02,
+        "2": 0.03,
+        "3": 0.414,
+        "4": 0.02,
+        "5": 0.01,
+        "6": 0.02,
+        "7": 0.41,
+        "8": 0.02,
+        "9": 0.01,
+        ".": 0.01,
+        "-": 0.01,
+        "END": 0.02
+      }
+    }
+  },
+  "usage": {
+    "input_tokens": 380,
+    "output_tokens": 104
+  },
+  "provider_metadata": {
+    "gateway": {
+      "cost": "0",
+      "marketCost": "0.000015900",
+      "generationId": "gen_TIE_FIXTURE"
+    }
+  }
+}

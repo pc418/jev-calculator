@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "jev-calculator",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-22",
+  "assets": { "directory": "./dist", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  "vars": {
+    "JEV_BASE_URL": "https://ai-gateway.vercel.sh/typesafe",
+    "JEV_MODEL": "typesafe-ai/jev",
+    "JEV_DISABLED": "0",
+    "TYPESAFE_BASE_URL": "https://api.typesafe.ai",
+    "TYPESAFE_MODEL": "jev-latest",
+    // Public Turnstile sitekey; "" disables verification. Secrets TURNSTILE_SECRET and PASS_SECRET
+    // go through `wrangler secret put`, never here.
+    "TURNSTILE_SITEKEY": "0x4AAAAAAFAcJr73IWkYVV4L",
+    // Comma-separated frontend hostnames siteverify must report.
+    "TURNSTILE_HOSTNAMES": "jev-calculator.cloudflare-jjx3a.workers.dev"
+  },
+  "ratelimits": [
+    { "name": "API_LIMIT", "namespace_id": "1001", "simple": { "limit": 40, "period": 60 } },
+    { "name": "FALLBACK_LIMIT", "namespace_id": "1002", "simple": { "limit": 20, "period": 60 } }
+  ]
+}

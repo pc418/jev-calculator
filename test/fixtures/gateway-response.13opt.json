@@ -1,0 +1,43 @@
+{
+  "model": "typesafe-ai/jev",
+  "answers": {
+    "next_char": {
+      "type": "choice",
+      "choice": "5",
+      "confidence": 0.73,
+      "probabilities": {
+        "0": 0,
+        "1": 0.14,
+        "2": 0.01,
+        "3": 0.02,
+        "4": 0.02,
+        "5": 0.7600000000000001,
+        "6": 0,
+        "7": 0.01,
+        "8": 0.01,
+        "9": 0.030000000000000002,
+        ".": 0,
+        "-": 0,
+        "END": 0
+      }
+    }
+  },
+  "usage": {
+    "input_tokens": 378,
+    "output_tokens": 102
+  },
+  "provider_metadata": {
+    "typesafe": {
+      "confidence": {
+        "next_char": 0.73
+      }
+    },
+    "gateway": {
+      "cost": "0",
+      "marketCost": "0.000015876",
+      "surchargeCost": "0",
+      "gatewayCost": "0",
+      "generationId": "gen_01M35JG6980Y50PYPKNGBM2A61"
+    }
+  }
+}
