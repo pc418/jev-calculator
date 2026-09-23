@@ -154,7 +154,8 @@ export class Runner {
         return this.fail(id, "bad_response");
       }
 
-      const r = body as unknown as NextResponse;
+      // A response from a Worker version that predates `withheld` (or any body without it) means nothing was withheld.
+      const r = { ...(body as unknown as NextResponse), withheld: Array.isArray(body.withheld) ? (body.withheld as Option[]) : [] };
       const step: Step = { ...r, index: this.snap.steps.length, client_ms: clientMs };
       const steps = [...this.snap.steps, step];
       if (r.choice === "END") {

@@ -316,6 +316,18 @@ describe("Runner", () => {
     expect(t.api.calls.slice(1).map((c) => c.prefix)).toEqual(["", "4"]);
   });
 
+  // Codex review 2026-09-22 (withhold feature): an older Worker response has no `withheld`; the page must not stall on it.
+  it("normalises a response without `withheld` to [] instead of stalling the run", async () => {
+    const { withheld: _drop, ...legacy } = answer("5");
+    void _drop;
+    const replies = [legacy, answer("END")];
+    const fetchFn = vi.fn(async () => new Response(JSON.stringify(replies.shift()), { status: 200 }));
+    const runner = new Runner({ onChange: () => {}, fetch: fetchFn as unknown as typeof fetch });
+    runner.start("1 + 4", "1 + 4");
+    await vi.waitFor(() => expect(runner.snapshot.state).toBe("ended"));
+    expect(runner.snapshot.steps.map((st) => st.withheld)).toEqual([[], []]);
+    expect(runner.snapshot.prefix).toBe("5");
+  });
   it("emits a fresh frozen snapshot on every change; earlier snapshots never change", async () => {
     const t = setup(["1", "2", "END"]);
     t.runner.start(DISPLAY, WIRE);
