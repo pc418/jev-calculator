@@ -14,7 +14,6 @@ import {
   type PassResponse,
   type UpstreamRoute,
 } from "../shared/protocol";
-import { offeredOptions } from "../shared/withhold";
 import { JevResponseError, buildRequest, mapResponse } from "./jev";
 import { MAX_TOKEN, mintPass, siteverify, verificationMode, verifyPass } from "./pass";
 
@@ -226,8 +225,6 @@ async function handleNext(request: Request, env: Env): Promise<Response> {
     return json(400, { error: "invalid_expression" });
   }
   if (typeof prefix !== "string" || !PREFIX_RE.test(prefix)) return json(400, { error: "invalid_prefix" });
-  // The options buildRequest offers on either route (END withheld for an integer product still too short).
-  const offered = offeredOptions(expression, prefix);
 
   // Gateway first (free credits). On its 429, or two transient failures, fall back once to the
   // direct TypeSafe API — only with a key and while the global FALLBACK_LIMIT budget allows.
@@ -270,7 +267,7 @@ async function handleNext(request: Request, env: Env): Promise<Response> {
     return json(502, { error: "upstream", status: res.status });
   }
   try {
-    const mapped = mapResponse(await res.json(), offered);
+    const mapped = mapResponse(await res.json());
     log(res.status, mapped.generation_id, ms);
     return json(200, { ...mapped, upstream_ms: ms, route });
   } catch (e) {

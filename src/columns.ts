@@ -2,7 +2,6 @@
 // option whose colour intensity is the probability (fixed 0–1 scale), chosen row solid. Values as
 // returned (2 dp). Design mock: docs/260922-ui-restyle-jev-calculator.md.
 import { OPTIONS, type Option } from "../shared/protocol";
-import { minProductDigits } from "../shared/withhold";
 import type { RunSnapshot, Step } from "./runner";
 
 const fmt2 = (x: number) => x.toFixed(2);
@@ -32,17 +31,14 @@ export function renderGrid(run: RunSnapshot, opts: GridOptions = {}): HTMLElemen
   // Rows 1..13: label + pills
   for (const opt of OPTIONS) {
     grid.appendChild(cell("row-label", opt === "END" ? "END" : opt));
-    for (const s of run.steps) {
-      const w = s.withheld.includes(opt) ? withheldPill(opt, run.expression.wire) : null;
-      grid.appendChild(w ?? pill(opt, s.probabilities[opt] ?? 0, opt === s.choice));
-    }
+    for (const s of run.steps) grid.appendChild(pill(opt, s.probabilities[opt] ?? 0, opt === s.choice));
     if (pending) grid.appendChild(pill(opt, 0, false, true));
   }
 
   // Confidence row
   grid.appendChild(cell("row-label conf-label", "Confidence"));
   for (const s of run.steps) {
-    const c = cell("conf", s.choice === "END" ? "–" : fmt2(s.confidence));
+    const c = cell("conf", fmt2(s.confidence)); // END included: the run score multiplies every step, so each factor is visible
     c.title = `Jev confidence ${fmt2(s.confidence)} · p(choice) ${fmt2(s.probabilities[s.choice] ?? 0)} · ${s.upstream_ms} ms via ${s.route}`;
     grid.appendChild(c);
   }
@@ -76,14 +72,6 @@ function pill(opt: Option, p: number, chosen: boolean, empty = false): HTMLEleme
   d.className = `pill ${chosen ? "chosen" : ""} ${empty ? "empty" : ""}`.trim();
   d.style.setProperty("--p", String(Math.max(0, Math.min(1, p))));
   d.title = empty ? "" : `${opt}: ${fmt2(p)}`;
-  return d;
-}
-
-/** An option Jev was not offered on this step (shared/withhold.ts): hatched, p 0, never chosen. */
-function withheldPill(opt: Option, wire: string): HTMLElement {
-  const d = pill(opt, 0, false);
-  d.classList.add("withheld");
-  d.title = `${opt} withheld: a product of these operands has at least ${minProductDigits(wire)} digits`;
   return d;
 }
 

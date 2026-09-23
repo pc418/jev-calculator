@@ -154,15 +154,14 @@ export class Runner {
         return this.fail(id, "bad_response");
       }
 
-      // A response from a Worker version that predates `withheld` (or any body without it) means nothing was withheld.
-      const r = { ...(body as unknown as NextResponse), withheld: Array.isArray(body.withheld) ? (body.withheld as Option[]) : [] };
-      const step: Step = { ...r, index: this.snap.steps.length, client_ms: clientMs };
+      const index = this.snap.steps.length;
+      const step: Step = { ...(body as unknown as NextResponse), index, client_ms: clientMs };
       const steps = [...this.snap.steps, step];
-      if (r.choice === "END") {
+      if (step.choice === "END") {
         this.set({ ...this.snap, steps, state: "ended" });
         return;
       }
-      const nextPrefix = prefix + r.choice; // verbatim, however malformed (§3.2)
+      const nextPrefix = prefix + step.choice; // verbatim, however malformed (§3.2)
       this.set({ ...this.snap, steps, prefix: nextPrefix, state: nextPrefix.length >= MAX_PREFIX ? "capped" : "running" });
     }
   }

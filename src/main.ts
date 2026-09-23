@@ -1,9 +1,9 @@
-// Page wiring: keypad → frozen expression → Runner → columns/sparkline/status. Rendering only; no arithmetic.
-import { type Expression, type Key, isComplete, press, toDisplay, toWire } from "../shared/expression";
+// Page wiring: keypad → frozen expression → Runner → columns/run score/status. Rendering only; no arithmetic.
+import { type Expression, type Key, isComplete, press, pressAfterRun, toDisplay, toWire } from "../shared/expression";
 import { Keypad } from "./keypad";
 import { firstDivergence, renderGrid } from "./columns";
 import { Runner, type RunSnapshot } from "./runner";
-import { renderSparkline } from "./sparkline";
+import { formatSci, runScore } from "./score";
 import { PASS_HEADER, type ConfigResponse, type PassResponse } from "../shared/protocol";
 
 const app = document.getElementById("app")!;
@@ -13,6 +13,7 @@ app.innerHTML = `
       <h1>Jev Calculator</h1>
       <p class="tagline">A calculator answered by a classifier, one character at a time.</p>
       <p class="lede">Type an expression, press =, and watch TypeSafe's Jev (a System One classifier) emit the result one character at a time, with the full probability distribution shown under each character.</p>
+      <p class="links"><a class="gh" href="https://github.com/pc418/jev-calculator" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Source on GitHub</a></p>
     </div>
     <aside class="callout" aria-label="Disclaimer">
       <strong>Fast Typesafe Calculator</strong>
@@ -53,8 +54,8 @@ app.innerHTML = `
           <div><span class="stat-label">Latency (last call)</span><span id="latency" class="stat-value">–</span></div>
         </div>
         <div class="stat">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
-          <div><span class="stat-label">Confidence trend</span><div id="spark" class="spark-slot"></div></div>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19h16"/><path d="M6 15l4-6 4 3 4-7"/></svg>
+          <div><span class="stat-label">Run score <span class="muted">(∏ confidence)</span></span><span id="score" class="stat-value">–</span></div>
         </div>
       </div>
       <details class="details"><summary>Run details</summary><div id="details"></div></details>
@@ -65,7 +66,7 @@ app.innerHTML = `
     <div>
       <h2>About this demo</h2>
       <p>This page calls TypeSafe's Jev model via the Vercel AI Gateway, hosted on Cloudflare. It's just a display page: we do not compute or show the true answer, and we don't check correctness.</p>
-      <p>Public and free (with rate limiting). All 13 options are offered every step, except END for a product of integers, which is withheld until the answer has as many digits as such a product must have; whatever Jev picks is appended, mistakes included. “Confidence” is the API's spread statistic, not the chance a digit is right.</p>
+      <p>Public and free (with rate limiting). All 13 options are offered every step; whatever Jev picks is appended, mistakes included. “Confidence” is the API's spread statistic, not the chance a digit is right.</p>
     </div>
     <div class="scope">
       <h3>Out of scope (by design)</h3>
@@ -82,7 +83,7 @@ const exprEl = $("expr"), answerEl = $("answer"), terminalEl = $("terminal");
 const stateEl = $("state"), countdownEl = $("countdown");
 const resumeBtn = $<HTMLButtonElement>("resume"), retryBtn = $<HTMLButtonElement>("retry");
 const cancelBtn = $<HTMLButtonElement>("cancel"), rerunBtn = $<HTMLButtonElement>("rerun");
-const runsEl = $("runs"), sparkEl = $("spark"), divNote = $("divnote"), detailsEl = $("details"), latencyEl = $("latency");
+const runsEl = $("runs"), scoreEl = $("score"), divNote = $("divnote"), detailsEl = $("details"), latencyEl = $("latency");
 
 let expr: Expression = [];
 let previous: RunSnapshot | null = null; // ghost of the last finished run of the same expression
@@ -146,14 +147,46 @@ async function ensureWidget(): Promise<void> {
   });
 }
 
+/** One solve at a time: a `=` click during the page-load prefetch awaits this instead of executing Turnstile again. */
+let passInflight: { promise: Promise<boolean>; quiet: boolean } | null = null;
+
+/**
+ * Resolves true once a valid pass is held (or verification is off). Returns at once while the pass has
+ * more than 30 s left; otherwise joins the in-flight solve or starts one. `quiet` (the page-load prefetch)
+ * writes nothing to the status line; when a click joined a quiet solve that failed, it tries again loudly.
+ */
+async function ensurePass(quiet = false): Promise<boolean> {
+  for (;;) {
+    if (pass && pass.exp - 30_000 > Date.now()) return true;
+    const shared = passInflight;
+    if (shared === null) break;
+    if (!quiet) setStatus("checking you are human…");
+    const ok = await shared.promise;
+    if (ok || quiet || !shared.quiet) return ok;
+  }
+  const promise: Promise<boolean> = acquirePass(quiet).finally(() => {
+    if (passInflight?.promise === promise) passInflight = null;
+  });
+  passInflight = { promise, quiet };
+  return promise;
+}
+
+/** Page load: solve the bot check in the background so `=` does not wait for it. Failures are left to the click. */
+async function prefetchPass(): Promise<void> {
+  await configLoaded;
+  if (sitekey === null || sitekey === "unknown") return;
+  await ensurePass(true);
+}
+
 /** Solve (usually invisibly) and exchange the token for a pass. Resolves false when the check fails. */
-async function ensurePass(): Promise<boolean> {
+async function acquirePass(quiet: boolean): Promise<boolean> {
+  const say = (text: string) => { if (!quiet) setStatus(text); };
   await configLoaded;
   if (sitekey === "unknown") await loadConfig();
-  if (sitekey === "unknown") { setStatus("cannot reach the server — try again"); return false; }
+  if (sitekey === "unknown") { say("cannot reach the server — try again"); return false; }
   if (sitekey === null) return true; // verification disabled server-side
   if (pass && pass.exp - 30_000 > Date.now()) return true;
-  setStatus("checking you are human…");
+  say("checking you are human…");
   try {
     await ensureWidget();
     const token = await withTimeout(
@@ -165,7 +198,7 @@ async function ensurePass(): Promise<boolean> {
       CHECK_TIMEOUT_MS,
       "bot check",
     );
-    if (!token) { setStatus("bot check failed — try again"); return false; }
+    if (!token) { say("bot check failed — try again"); return false; }
     const body = await withTimeout(
       fetch("/api/pass", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }),
@@ -173,17 +206,19 @@ async function ensurePass(): Promise<boolean> {
       CHECK_TIMEOUT_MS,
       "pass exchange",
     );
-    if (!body) { setStatus("bot check rejected — try again"); return false; }
+    if (!body) { say("bot check rejected — try again"); return false; }
     pass = { value: body.pass, exp: Date.now() + body.expires_in * 1000 };
     return true;
   } catch (e) {
     tokenWaiters = []; // nobody is listening any more; a late token is dropped
-    setStatus(`${e instanceof Error ? e.message : "bot check failed"} — try again`);
+    say(`${e instanceof Error ? e.message : "bot check failed"} — try again`);
     return false;
   }
 }
 
 function setStatus(text: string) { stateEl.textContent = text; }
+
+void prefetchPass();
 
 const runner = new Runner({
   onChange: (s) => { snap = s; render(); },
@@ -192,8 +227,10 @@ const runner = new Runner({
 
 const keypad = new Keypad({
   onKey: (key: Key) => {
-    if (isBusy()) return;
-    const next = press(expr, key);
+    if (isLocked()) return;
+    // After a finished run (any terminal state) a digit starts a new expression instead of appending.
+    const afterRun = snap !== null && !isBusy();
+    const next = afterRun ? pressAfterRun(expr, key) : press(expr, key);
     if (next === null) return;
     expr = next;
     // Editing starts a new experiment: drop the finished run's columns, ghost and Rerun target.
@@ -202,7 +239,7 @@ const keypad = new Keypad({
     render();
   },
   onEquals: () => {
-    if (!isComplete(expr) || isBusy()) return;
+    if (!isComplete(expr) || isLocked()) return;
     previous = null;
     void startChecked(toDisplay(expr), toWire(expr));
   },
@@ -210,7 +247,7 @@ const keypad = new Keypad({
 $("keypad-slot").appendChild(keypad.el);
 
 rerunBtn.addEventListener("click", () => {
-  if (!snap || isBusy()) return;
+  if (!snap || isLocked()) return;
   previous = snap;
   void startChecked(snap.expression.display, snap.expression.wire);
 });
@@ -220,10 +257,12 @@ let recoveriesForRun = { id: -1, n: 0 };
 async function startChecked(display: string, wire: string) {
   if (starting) return;
   starting = true;
+  syncLock(); // Codex 2026-09-22: keys stay locked while the start waits for the bot check, so an edit cannot outrun it
   try {
     if (await ensurePass()) runner.start(display, wire);
   } finally {
     starting = false;
+    syncLock();
   }
 }
 
@@ -239,12 +278,23 @@ cancelBtn.addEventListener("click", () => runner.cancel());
 function isBusy() {
   return snap?.state === "running" || snap?.state === "paused";
 }
+/** Busy, or a start / 401 recovery is waiting for the bot check: no edits, no Rerun, no manual Retry meanwhile. */
+function isLocked() {
+  return isBusy() || starting;
+}
+/** Keys, Rerun and Retry follow the lock; called from render() and whenever `starting` flips without a snapshot change. */
+function syncLock() {
+  keypad.update(expr, isLocked(), snap !== null && !isBusy());
+  rerunBtn.hidden = isLocked() || !snap || snap.steps.length === 0;
+  // Codex 2026-09-22: a manual Retry during the automatic 401 recovery would send without a pass and burn the retry ceiling.
+  retryBtn.hidden = !snap || snap.state !== "error" || starting;
+}
 
 let ticker: number | undefined;
 function render() {
   const busy = isBusy();
   exprEl.textContent = busy ? snap!.expression.display : expr.length ? toDisplay(expr) : "0";
-  keypad.update(expr, isComplete(expr), busy);
+  syncLock();
 
   if (!snap) {
     answerEl.textContent = "";
@@ -254,7 +304,8 @@ function render() {
     window.clearInterval(ticker);
     resumeBtn.hidden = retryBtn.hidden = cancelBtn.hidden = rerunBtn.hidden = true;
     runsEl.innerHTML = '<p class="empty">Enter an expression and press = to start.</p>';
-    sparkEl.replaceChildren();
+    scoreEl.textContent = "–";
+    scoreEl.title = "";
     latencyEl.textContent = "–";
     divNote.hidden = true;
     detailsEl.innerHTML = "";
@@ -265,7 +316,9 @@ function render() {
     if (recoveriesForRun.n < 2) {
       recoveriesForRun.n += 1;
       starting = true;
-      void recoverUnverified().finally(() => { starting = false; });
+      syncLock();
+      // render(): a second attempt if allowed, else the "keeps failing" label with Retry visible again.
+      void recoverUnverified().finally(() => { starting = false; render(); });
     }
   }
   answerEl.textContent = snap.prefix;
@@ -274,9 +327,7 @@ function render() {
   stateEl.textContent = stateLabel(snap);
 
   resumeBtn.hidden = snap.state !== "paused";
-  retryBtn.hidden = snap.state !== "error";
   cancelBtn.hidden = !busy;
-  rerunBtn.hidden = busy || snap.steps.length === 0;
 
   window.clearInterval(ticker);
   countdownEl.textContent = "";
@@ -306,7 +357,9 @@ function render() {
       ? "Rerun matched the previous run character for character. Differences in the bars are identical-input jitter."
       : `Runs diverged at step ${divergeAt + 1}. Columns before it compare identical inputs; from there on the prefixes differ, so the bars answer different questions.`;
   }
-  sparkEl.replaceChildren(renderSparkline(snap.steps, previous?.steps));
+  const score = runScore(snap.steps);
+  scoreEl.textContent = score === null ? "–" : formatSci(score);
+  scoreEl.title = score === null ? "" : `product of the per-step Jev confidences over ${snap.steps.length} step(s), END step included`;
   runsEl.querySelector(".grid-wrap.live")?.scrollTo({ left: 1e6 });
   renderDetails(snap);
 }
@@ -331,7 +384,8 @@ function stateLabel(s: RunSnapshot): string {
     case "capped": return `stopped at ${s.prefix.length} characters (cap) — truncated, not complete`;
     case "cancelled": return "cancelled";
     case "error":
-      if (s.error === "unverified") return recoveriesForRun.n < 2 ? "re-checking you are human…" : "bot check keeps failing — reload the page";
+      // Codex re-verify 2026-09-22: tied to `starting`, not the attempt count, so the second attempt does not read "keeps failing" while it still solves.
+      if (s.error === "unverified") return starting ? "re-checking you are human…" : "bot check keeps failing — reload the page";
       return `failed: ${s.error ?? "unknown error"} (retries used ${s.retries}/3)`;
     default: return "idle";
   }

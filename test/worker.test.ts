@@ -8,7 +8,7 @@
 // sitekey "" and both secrets unset (verification disabled, as before); turnstileEnv() enables it.
 import { env as realEnv } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MAX_BODY, PASS_HEADER, PASS_TTL_S } from "../shared/protocol";
+import { MAX_BODY, OPTIONS, PASS_HEADER, PASS_TTL_S } from "../shared/protocol";
 import worker, { type Env } from "../worker/index";
 import { ACTIVE_PROMPT, buildRequest } from "../worker/jev";
 import { mintPass, verifyPass } from "../worker/pass";
@@ -221,37 +221,24 @@ describe("POST /api/next — happy path", () => {
     expect(logs.some((l) => l.includes("gen_01M35JG6980Y50PYPKNGBM2A61") && l.includes('"status":200'))).toBe(true);
   });
 
-  // PIN: owner 2026-09-22 — all 13 options offered every step EXCEPT END for pure integer products before the minimum digit count ("hide end before expected least digits … for mult"); docs/260922-feat-withhold-end-mult.md
-  it("'123 * 45' with prefix '' → END left out of the upstream criteria, 200 reports withheld ['END'] and p(END) 0", async () => {
-    const reply = structuredClone(response13) as any;
-    delete reply.answers.next_char.probabilities.END;
-    upstreamReplies = [upstreamOk(reply)];
+  // PIN: owner 2026-09-22 (night) — all 13 options offered every step, never masked; the END withholding shipped earlier that evening was reverted ("we keep it as described, no masking"); docs/260922-feat-batch-revert-withhold-ui.md
+  it("'123 * 45' with prefix '' → upstream body carries all 13 criteria (END included); 200 body has no `withheld`", async () => {
+    upstreamReplies = [upstreamOk()];
     const { res, json } = await call(post({ expression: "123 * 45", prefix: "" }));
     expect(res.status).toBe(200);
-    expect(json.withheld).toEqual(["END"]);
-    expect(json.probabilities.END).toBe(0);
-    expect(json.probabilities["5"]).toBe(0.76);
+    expect(json).not.toHaveProperty("withheld");
     expect(json.choice).toBe("5");
 
     expect(upstreamCalls).toHaveLength(1);
     const sent = JSON.parse(upstreamCalls[0]!.body);
-    expect(Object.keys(sent.questions.next_char.criteria)).not.toContain("END");
-    expect(Object.keys(sent.questions.next_char.criteria)).toHaveLength(12);
+    expect(Object.keys(sent.questions.next_char.criteria)).toEqual([...OPTIONS]);
     expect(sent).toEqual(expectedRequest("typesafe-ai/jev", "123 * 45", ""));
   });
 
-  it("'123 * 45' with prefix '5555' → END offered again, withheld []", async () => {
-    upstreamReplies = [upstreamOk()];
-    const { res, json } = await call(post({ expression: "123 * 45", prefix: "5555" }));
-    expect(res.status).toBe(200);
-    expect(json.withheld).toEqual([]);
-    const sent = JSON.parse(upstreamCalls[0]!.body);
-    expect(Object.keys(sent.questions.next_char.criteria)).toContain("END");
-    expect(Object.keys(sent.questions.next_char.criteria)).toHaveLength(13);
-  });
-
-  it("END withheld but the upstream still returns it → 502 upstream status 200 (shape contract)", async () => {
-    upstreamReplies = [upstreamOk()];
+  it("upstream 2xx lacking END for '123 * 45' → 502 upstream status 200 (all 13 keys are the contract)", async () => {
+    const reply = structuredClone(response13) as any;
+    delete reply.answers.next_char.probabilities.END;
+    upstreamReplies = [upstreamOk(reply)];
     const { res, json } = await call(post({ expression: "123 * 45", prefix: "" }));
     expect(res.status).toBe(502);
     expect(json).toEqual({ error: "upstream", status: 200 });
@@ -426,19 +413,17 @@ describe("POST /api/next — direct TypeSafe fallback", () => {
     expect(apiLogs()).toEqual([expect.objectContaining({ route: "gateway", fallback: false, status: 200, attempts: 1 })]);
   });
 
-  it("END withheld on the direct route too: both bodies lack END, direct 200 reports withheld ['END']", async () => {
-    const reply = structuredClone(directResponse) as any;
-    delete reply.answers.next_char.probabilities.END;
+  it("direct route for '123 * 45' too: both bodies carry all 13 criteria, direct 200 has no `withheld`", async () => {
     upstreamReplies = [gateway429()];
-    directReplies = [upstreamOk(reply)];
+    directReplies = [upstreamOk(directResponse)];
     const { res, json } = await call(post({ expression: "123 * 45", prefix: "12" }), withKey());
     expect(res.status).toBe(200);
-    expect(json).toMatchObject({ route: "direct", withheld: ["END"] });
-    expect(json.probabilities.END).toBe(0);
+    expect(json).toMatchObject({ route: "direct" });
+    expect(json).not.toHaveProperty("withheld");
     const [gw, direct] = upstreamCalls;
     expect(JSON.parse(gw!.body)).toEqual(expectedRequest("typesafe-ai/jev", "123 * 45", "12"));
     expect(JSON.parse(direct!.body)).toEqual(expectedRequest("jev-latest", "123 * 45", "12"));
-    expect(Object.keys(JSON.parse(direct!.body).questions.next_char.criteria)).not.toContain("END");
+    expect(Object.keys(JSON.parse(direct!.body).questions.next_char.criteria)).toEqual([...OPTIONS]);
   });
 
   it("gateway 429, key present, budget ok → direct 200 with the TypeSafe key and model, route direct", async () => {

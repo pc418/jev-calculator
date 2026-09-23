@@ -12,8 +12,8 @@ const MODEL = "typesafe-ai/jev";
 const clone = <T>(v: T): T => structuredClone(v);
 
 describe("buildRequest (active prompt from prompts/jev-prompts.md)", () => {
-  // PIN: owner 2026-09-22 — all 13 options offered every step EXCEPT END for pure integer products before the minimum digit count ("hide end before expected least digits … for mult"); docs/260922-feat-withhold-end-mult.md
-  it("equals the body derived from the active prompt, all criteria offered in OPTIONS order for a non-product", () => {
+  // PIN: owner 2026-09-22 (night) — all 13 options offered every step, never masked; the END withholding shipped earlier that evening was reverted ("we keep it as described, no masking"); docs/260922-feat-batch-revert-withhold-ui.md
+  it("equals the body derived from the active prompt, all criteria offered in OPTIONS order", () => {
     const body = buildRequest(MODEL, "12 + 3", "1");
     expect(body).toEqual(expectedRequest(MODEL, "12 + 3", "1"));
     // Key order is part of the byte-stable body.
@@ -29,25 +29,14 @@ describe("buildRequest (active prompt from prompts/jev-prompts.md)", () => {
     expect(joined).not.toContain("{");
   });
 
-  // PIN: owner 2026-09-22 — all 13 options offered every step EXCEPT END for pure integer products before the minimum digit count ("hide end before expected least digits … for mult"); docs/260922-feat-withhold-end-mult.md
-  it("withholds END's criterion for '123 * 45' until 4 digits are emitted; everything else identical", () => {
-    const withheld = buildRequest(MODEL, "123 * 45", "");
-    const noEnd = OPTIONS.filter((o) => o !== "END");
-    expect(Object.keys(withheld.questions.next_char.criteria)).toEqual(noEnd);
-    expect(withheld).toEqual(expectedRequest(MODEL, "123 * 45", ""));
-    // Same body as a full 13-option one apart from the missing END criterion: state, instructions, model.
-    const full = buildRequest(MODEL, "123 * 45", "5555");
-    expect(Object.keys(full.questions.next_char.criteria)).toEqual([...OPTIONS]);
-    const { END: _end, ...fullMinusEnd } = full.questions.next_char.criteria;
-    expect(withheld.questions.next_char.criteria).toEqual(fullMinusEnd);
-    for (const o of noEnd) expect(withheld.questions.next_char.criteria[o]).toBe(ACTIVE_PROMPT.criteria[o]);
-    expect(withheld.questions.next_char.instructions).toBe(full.questions.next_char.instructions);
-    expect(withheld.state).toEqual(ACTIVE_PROMPT.state("123 * 45", ""));
-    expect(withheld.model).toBe(full.model);
-    // 3 digits (signs/dots ignored) still withholds; a sum never does.
-    expect(Object.keys(buildRequest(MODEL, "123 * 45", "-5.55").questions.next_char.criteria)).toEqual(noEnd);
-    for (const prefix of ["", "1", "15"]) {
-      expect(Object.keys(buildRequest(MODEL, "12 + 3", prefix).questions.next_char.criteria)).toEqual([...OPTIONS]);
+  // PIN: owner 2026-09-22 (night) — all 13 options offered every step, never masked; the END withholding shipped earlier that evening was reverted ("we keep it as described, no masking"); docs/260922-feat-batch-revert-withhold-ui.md
+  it("an integer product '123 * 45' with prefix '' still carries exactly the 13 OPTIONS criteria, END included, in order", () => {
+    const body = buildRequest(MODEL, "123 * 45", "");
+    expect(Object.keys(body.questions.next_char.criteria)).toEqual([...OPTIONS]);
+    expect(body.questions.next_char.criteria.END).toBe(ACTIVE_PROMPT.criteria.END);
+    expect(body).toEqual(expectedRequest(MODEL, "123 * 45", ""));
+    for (const prefix of ["", "5", "-5.55"]) {
+      expect(Object.keys(buildRequest(MODEL, "123 * 45", prefix).questions.next_char.criteria)).toEqual([...OPTIONS]);
     }
   });
 
@@ -93,7 +82,6 @@ describe("mapResponse", () => {
         "0": 0, "1": 0.14, "2": 0.01, "3": 0.02, "4": 0.02, "5": 0.76, "6": 0, "7": 0.01, "8": 0.01, "9": 0.03,
         ".": 0, "-": 0, END: 0,
       },
-      withheld: [],
       usage: { input_tokens: 378, output_tokens: 102 },
       cost: "0",
       market_cost: "0.000015876",
@@ -111,7 +99,6 @@ describe("mapResponse", () => {
         "0": 0, "1": 0.09, "2": 0.01, "3": 0.02, "4": 0.01, "5": 0.82, "6": 0, "7": 0.01, "8": 0.01, "9": 0.03,
         ".": 0, "-": 0, END: 0,
       },
-      withheld: [],
       usage: { input_tokens: 378, output_tokens: 102 },
       cost: "",
       market_cost: "",
@@ -144,7 +131,7 @@ describe("mapResponse", () => {
     expect(sum).toBeCloseTo(1.27, 10); // as returned (0.14 → 0.41 pushes the sum past 1), not forced to 1
   });
 
-  // PIN: owner 2026-09-22 — all 13 options offered every step EXCEPT END for pure integer products before the minimum digit count ("hide end before expected least digits … for mult"); docs/260922-feat-withhold-end-mult.md
+  // PIN: owner 2026-09-22 (night) — all 13 options offered every step, never masked; the END withholding shipped earlier that evening was reverted ("we keep it as described, no masking"); docs/260922-feat-batch-revert-withhold-ui.md
   it("tie fixture: two options round equal and the API chose the later-listed one → choice is the API's", () => {
     const m = mapResponse(clone(tie));
     expect(m.probabilities["3"]).toBe(0.41);
@@ -163,42 +150,11 @@ describe("mapResponse", () => {
     expect(() => mapResponse(clone(recorded12))).toThrow(JevResponseError);
   });
 
-  describe("with END withheld (offered = 12 options)", () => {
-    const offered = OPTIONS.filter((o) => o !== "END");
-    const withoutEnd = () => {
-      const r = clone(response13) as any;
-      delete r.answers.next_char.probabilities.END;
-      return r;
-    };
-
-    it("accepts a response lacking END: END probability 0, withheld ['END'], other fields as the 13-option mapping", () => {
-      const m = mapResponse(withoutEnd(), offered);
-      expect(m.probabilities.END).toBe(0);
-      expect(m.withheld).toEqual(["END"]);
-      expect(Object.keys(m.probabilities)).toEqual([...OPTIONS]);
-      const full = mapResponse(clone(response13));
-      expect(m).toEqual({ ...full, withheld: ["END"] }); // fixture's END is 0 anyway
-    });
-
-    it("rejects a response that includes the withheld END", () => {
-      expect(() => mapResponse(clone(response13), offered)).toThrow(JevResponseError);
-    });
-
-    it("rejects choice END while it is withheld", () => {
-      const r = withoutEnd();
-      r.answers.next_char.choice = "END";
-      expect(() => mapResponse(r, offered)).toThrow(JevResponseError);
-    });
-
-    it("still rejects a missing offered option", () => {
-      const r = withoutEnd();
-      delete r.answers.next_char.probabilities["9"];
-      expect(() => mapResponse(r, offered)).toThrow(JevResponseError);
-    });
-  });
-
-  it("default mapping reports withheld [] on every 13-option fixture", () => {
-    for (const f of [response13, tie, direct]) expect(mapResponse(clone(f)).withheld).toEqual([]);
+  it("rejects a response lacking END (all 13 keys are required); no `withheld` field in any mapping", () => {
+    const r = clone(response13) as any;
+    delete r.answers.next_char.probabilities.END;
+    expect(() => mapResponse(r)).toThrow(JevResponseError);
+    for (const f of [response13, tie, direct]) expect(mapResponse(clone(f))).not.toHaveProperty("withheld");
   });
 
   const mutations: Array<[string, (r: any) => void]> = [

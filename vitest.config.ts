@@ -9,7 +9,7 @@ export default defineConfig({
         test: {
           name: "unit",
           environment: "node",
-          include: ["test/protocol.test.ts", "test/withhold.test.ts", "test/expression.test.ts", "test/jev.test.ts", "test/runner.test.ts", "test/pass.test.ts", "test/prompts.test.ts"],
+          include: ["test/protocol.test.ts", "test/score.test.ts", "test/expression.test.ts", "test/jev.test.ts", "test/runner.test.ts", "test/pass.test.ts", "test/prompts.test.ts"],
         },
       },
       {

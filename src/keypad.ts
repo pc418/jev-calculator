@@ -1,5 +1,5 @@
 // Keypad UI. All grammar decisions come from shared/expression.ts; this file only draws buttons.
-import { type Expression, type Key, isComplete, press } from "../shared/expression";
+import { type Expression, type Key, isComplete, press, pressAfterRun } from "../shared/expression";
 
 type KeyDef = { key: Key | "="; label: string; cls?: string; title?: string };
 
@@ -60,12 +60,15 @@ export class Keypad {
     else this.handlers.onKey(key);
   }
 
-  /** Enables exactly the keys the grammar allows next; `=` only for a complete expression when idle. */
-  update(expr: Expression, canSubmit: boolean, locked: boolean) {
+  /**
+   * Enables exactly the keys the grammar allows next; `=` only for a complete expression when idle.
+   * After a finished run (`afterRun`) keys follow pressAfterRun, so a digit that starts a new expression is enabled.
+   */
+  update(expr: Expression, locked: boolean, afterRun: boolean) {
+    const next = afterRun ? pressAfterRun : press;
     for (const [key, b] of this.buttons) {
       if (key === "=") b.disabled = locked || !isComplete(expr);
-      else b.disabled = locked || press(expr, key) === null;
+      else b.disabled = locked || next(expr, key) === null;
     }
-    void canSubmit;
   }
 }

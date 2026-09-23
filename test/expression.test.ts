@@ -3,6 +3,7 @@ import {
   MAX_NUMBER_DIGITS,
   isComplete,
   press,
+  pressAfterRun,
   toDisplay,
   toWire,
   type Expression,
@@ -120,7 +121,7 @@ describe("back / clear", () => {
 });
 
 describe("number and length caps", () => {
-  // PIN: owner 2026-09-22 — 8-digit operands, 16-char answer cap (was 12/24; "given its perf"), docs/260922-plan-jev-calculator.md §3.1/§3.3
+  // PIN: owner 2026-09-22 (evening, "given its perf") — 8-digit operands (was 12), docs/260922-plan-jev-calculator.md §3.1; answer cap is 12 chars since that night (test/runner.test.ts)
   it("accepts the 8th digit and refuses the 9th; the dot does not count", () => {
     expect(MAX_NUMBER_DIGITS).toBe(8);
     const twelve = type(digits("12345678"));
@@ -212,5 +213,39 @@ describe("property: every reachable complete expression is valid on the wire", (
     expect(completes).toBeGreaterThan(5000);
     expect(withMod).toBeGreaterThan(100);
     expect(withSqrt).toBeGreaterThan(100);
+  });
+});
+
+// PIN: owner 2026-09-22 (night) — "After computed, another press at num will Clear first instead of append":
+// after a finished run a digit / "." / sqrt starts a new expression, an operator/back/clear edits the old one;
+// docs/260922-feat-batch-revert-withhold-ui.md
+describe("pressAfterRun", () => {
+  const finished = type(keys("4 + 9"));
+
+  it("a digit starts a fresh expression instead of appending", () => {
+    const next = pressAfterRun(finished, "1");
+    expect(next).not.toBeNull();
+    expect(toDisplay(next!)).toBe("1");
+    expect(next).toEqual(press([], "1"));
+    expect(press(finished, "1")).not.toEqual(next); // plain press would append → "4 + 91"
+  });
+
+  it("a digit is accepted even when the finished expression is at the digit cap", () => {
+    const full = type(digits("1".repeat(MAX_NUMBER_DIGITS)));
+    expect(press(full, "7")).toBeNull();
+    expect(toDisplay(pressAfterRun(full, "7")!)).toBe("7");
+  });
+
+  it("'.' and sqrt behave as on an empty keypad", () => {
+    expect(pressAfterRun(finished, ".")).toEqual(press([], "."));
+    expect(pressAfterRun(finished, "sqrt")).toEqual(press([], "sqrt"));
+    expect(toDisplay(pressAfterRun(finished, "sqrt")!)).toBe("√");
+  });
+
+  it("operators, back and clear edit the finished expression as usual", () => {
+    for (const k of ["+", "-", "*", "/", "mod", "back"] as const) expect(pressAfterRun(finished, k)).toEqual(press(finished, k));
+    expect(toDisplay(pressAfterRun(finished, "+")!)).toBe("4 + 9 +");
+    expect(toDisplay(pressAfterRun(finished, "back")!)).toBe("4 +");
+    expect(pressAfterRun(finished, "clear")).toEqual([]);
   });
 });

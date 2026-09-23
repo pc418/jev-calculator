@@ -26,10 +26,10 @@ describe("prompts/jev-prompts.md", () => {
     expect(req.state).toEqual(ACTIVE_PROMPT.state("347 * 29", "10"));
     expect(Object.values(req.state).join(" ")).toContain("347 * 29");
     expect(Object.values(req.state).join(" ")).toContain("10");
-    // PIN: owner 2026-09-22 — all 13 options offered every step EXCEPT END for pure integer products before the minimum digit count ("hide end before expected least digits … for mult"); docs/260922-feat-withhold-end-mult.md
-    // "347 * 29" has at least 4 digits and "10" has 2, so END is withheld; the other 12 carry the md criteria.
-    expect(Object.keys(req.questions.next_char.criteria)).toEqual(OPTIONS.filter((o) => o !== "END"));
-    for (const o of OPTIONS.filter((o) => o !== "END")) expect(req.questions.next_char.criteria[o]).toBe(ACTIVE_PROMPT.criteria[o]);
+    // PIN: owner 2026-09-22 (night) — all 13 options offered every step, never masked; the END withholding shipped earlier that evening was reverted ("we keep it as described, no masking"); docs/260922-feat-batch-revert-withhold-ui.md
+    // All 13 keys, END included, each carrying the md criterion — also for an integer product with a short prefix.
+    expect(Object.keys(req.questions.next_char.criteria)).toEqual([...OPTIONS]);
+    for (const o of OPTIONS) expect(req.questions.next_char.criteria[o]).toBe(ACTIVE_PROMPT.criteria[o]);
   });
   it("every prompt's state references both {expression} and {prefix}; the generator rejects one that does not", () => {
     const { prompts } = parsePrompts(md);

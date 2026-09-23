@@ -11,7 +11,6 @@ function answer(choice: Option): NextResponse {
     choice,
     confidence: 0.68,
     probabilities,
-    withheld: [],
     upstream_ms: 400,
     usage: { input_tokens: 380, output_tokens: 100 },
     cost: "0",
@@ -111,7 +110,7 @@ describe("Runner", () => {
     expect(runner.snapshot).toMatchObject({ id: 0, state: "idle", prefix: "", steps: [], retries: 0 });
   });
 
-  // PIN: owner 2026-09-22 — all 13 options offered every step EXCEPT END for pure integer products before the minimum digit count ("hide end before expected least digits … for mult"); docs/260922-feat-withhold-end-mult.md
+  // PIN: owner 2026-09-22 (night) — all 13 options offered every step, never masked; the END withholding shipped earlier that evening was reverted ("we keep it as described, no masking"); docs/260922-feat-batch-revert-withhold-ui.md
   // PIN: owner+Codex decision 2026-09-22, docs/260922-plan-jev-calculator.md §3.2 — append API choice, never argmax.
   it("appends choice verbatim including '0', '-', '.' (no masking, no repair); END recorded, not appended, nothing follows", async () => {
     const t = setup(["-", "0", ".", ".", "0", "-", "END", "9"]);
@@ -135,9 +134,9 @@ describe("Runner", () => {
     expect(t.runner.snapshot.steps[0]).toEqual({ ...answer("1"), index: 0, client_ms: 0 });
   });
 
-  // PIN: owner 2026-09-22 — 8-digit operands, 16-char answer cap (was 12/24; "given its perf"), docs/260922-plan-jev-calculator.md §3.1/§3.3
+  // PIN: owner 2026-09-22 (night) — 8-digit operands, 12-char answer cap ("limit output to 12 chr"; was 16 earlier that evening, 24 originally), docs/260922-feat-batch-revert-withhold-ui.md
   it(`caps at ${MAX_PREFIX} chars: the ${MAX_PREFIX}th char → capped, ${MAX_PREFIX} steps ⇒ ${MAX_PREFIX} requests`, async () => {
-    expect(MAX_PREFIX).toBe(16);
+    expect(MAX_PREFIX).toBe(12);
     const t = setup(Array.from({ length: MAX_PREFIX + 5 }, (_, i) => String(i % 10) as Option));
     t.runner.start(DISPLAY, WIRE);
     await until(t.runner, "capped");
@@ -316,18 +315,6 @@ describe("Runner", () => {
     expect(t.api.calls.slice(1).map((c) => c.prefix)).toEqual(["", "4"]);
   });
 
-  // Codex review 2026-09-22 (withhold feature): an older Worker response has no `withheld`; the page must not stall on it.
-  it("normalises a response without `withheld` to [] instead of stalling the run", async () => {
-    const { withheld: _drop, ...legacy } = answer("5");
-    void _drop;
-    const replies = [legacy, answer("END")];
-    const fetchFn = vi.fn(async () => new Response(JSON.stringify(replies.shift()), { status: 200 }));
-    const runner = new Runner({ onChange: () => {}, fetch: fetchFn as unknown as typeof fetch });
-    runner.start("1 + 4", "1 + 4");
-    await vi.waitFor(() => expect(runner.snapshot.state).toBe("ended"));
-    expect(runner.snapshot.steps.map((st) => st.withheld)).toEqual([[], []]);
-    expect(runner.snapshot.prefix).toBe("5");
-  });
   it("emits a fresh frozen snapshot on every change; earlier snapshots never change", async () => {
     const t = setup(["1", "2", "END"]);
     t.runner.start(DISPLAY, WIRE);

@@ -104,6 +104,16 @@ export function press(expr: Expression, key: Key): Expression | null {
   return next;
 }
 
+/**
+ * A key pressed after a finished run. Owner 2026-09-22 (night): "After computed, another press at num will
+ * Clear first instead of append" — a key that begins a new number (digit, ".", sqrt) starts a fresh
+ * expression; an operator, back or clear edits the finished expression as usual.
+ */
+export function pressAfterRun(expr: Expression, key: Key): Expression | null {
+  const startsNumber = isDigit(key) || key === "." || key === "sqrt";
+  return startsNumber ? press([], key) : press(expr, key);
+}
+
 /** True when the expression is complete under the grammar (enables "="). */
 export function isComplete(expr: Expression): boolean {
   return expr.length > 0 && isValidWireExpression(toWire(expr));

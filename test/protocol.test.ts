@@ -92,7 +92,7 @@ describe("isValidWireExpression mod domain", () => {
 
 describe("PREFIX_RE", () => {
   // Alphabet-bounded by design (§3.2): Jev's malformed output must survive.
-  it.each(["", "-1.5", "1-", "--", "1.2.3", "007", "0123456789.-0123", "-".repeat(MAX_PREFIX)])("accepts %j", (s) => {
+  it.each(["", "-1.5", "1-", "--", "1.2.3", "007", "0123456789.-", "-".repeat(MAX_PREFIX)])("accepts %j", (s) => {
     expect(PREFIX_RE.test(s)).toBe(true);
   });
   it.each(["1e5", "1".repeat(MAX_PREFIX + 1), "END", " 1", "1 ", "+1", "1,5", "1\n"])("rejects %j", (s) => {

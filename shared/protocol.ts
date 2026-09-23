@@ -4,18 +4,18 @@
 export const OPTIONS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "-", "END"] as const;
 export type Option = (typeof OPTIONS)[number];
 
-export const MAX_PREFIX = 16;
+export const MAX_PREFIX = 12;
 export const MAX_EXPRESSION = 64;
 export const MAX_BODY = 1024;
 
 /** Emitted answer so far. Alphabet-bounded on purpose: Jev's malformed output must survive (§3.2). */
-export const PREFIX_RE = /^[0-9.-]{0,16}$/;
+export const PREFIX_RE = /^[0-9.-]{0,12}$/;
 
 /**
  * Wire expression grammar (§3.1): term (" " op " " term)*, term = "sqrt(" number ")" | number.
  * No length bound and no `mod` operand rules here: use isValidWireExpression for the full check.
  */
-/** Owner 2026-09-22 (evening, "given its perf"): ≤ 8 digits per operand (the dot excluded), answer ≤ 16 chars. Mirrors MAX_NUMBER_DIGITS in shared/expression.ts. */
+/** Owner 2026-09-22 (evening, "given its perf"): ≤ 8 digits per operand (the dot excluded); answer ≤ 12 chars (owner 2026-09-22 night, was 16 earlier that evening, 24 originally). Mirrors MAX_NUMBER_DIGITS in shared/expression.ts. */
 export const MAX_OPERAND_DIGITS = 8;
 const D = MAX_OPERAND_DIGITS;
 // A number: digits with at most one dot, and at most D digits in total (dot excluded). Built from the constant so the cap lives once.
@@ -52,8 +52,6 @@ export interface NextResponse {
   choice: Option;
   confidence: number;
   probabilities: Record<Option, number>;
-  /** Options not offered to Jev this step (shared/withhold.ts); their `probabilities` are 0. Usually []. */
-  withheld: Option[];
   upstream_ms: number;
   usage: { input_tokens: number; output_tokens: number };
   cost: string;

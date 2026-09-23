@@ -11,13 +11,13 @@ Live: <https://jev-calculator.cloudflare-jjx3a.workers.dev>
 
 ## What you see
 
-- **Calculator card**: keypad with `+ − × ÷ mod √`, decimals, operands up to 8 digits, answers up to 16
+- **Calculator card**: keypad with `+ − × ÷ mod √`, decimals, operands up to 8 digits, answers up to 12
   characters. `=` starts a run, **Rerun** repeats the same expression so you can see the jitter between
   identical calls (the previous run stays visible as a ghost, with the first divergence marked).
 - **Model output (streaming)**: one column per emitted character. Rows are the 13 options; each pill's
   colour intensity is the probability Jev gave that option at that step. The chosen option is solid.
   A Confidence row shows Jev's own confidence per step, plus the latency of the last call and a
-  confidence sparkline.
+  run score: the product of every step's confidence (END step included), in scientific notation.
 
 Jev is not a calculator. Small sums, differences, square roots and `mod` often come out right. On large
 products it gets the first two or three digits and then stops, because once the digit distribution goes
@@ -88,3 +88,7 @@ which is the hostname the test secret reports.
   queue them. The direct fallback has its own small budget and limiter.
 - No true answer is computed or displayed, by design.
 - Probabilities are shown as returned (two decimals, not renormalised), so a column may not sum to 1.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
