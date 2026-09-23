@@ -135,9 +135,9 @@ describe("Runner", () => {
     expect(t.runner.snapshot.steps[0]).toEqual({ ...answer("1"), index: 0, client_ms: 0 });
   });
 
-  // PIN: owner 2026-09-22 — 12-digit operands, 24-char answer cap, docs/260922-plan-jev-calculator.md §3.1/§3.3
+  // PIN: owner 2026-09-22 — 8-digit operands, 16-char answer cap (was 12/24; "given its perf"), docs/260922-plan-jev-calculator.md §3.1/§3.3
   it(`caps at ${MAX_PREFIX} chars: the ${MAX_PREFIX}th char → capped, ${MAX_PREFIX} steps ⇒ ${MAX_PREFIX} requests`, async () => {
-    expect(MAX_PREFIX).toBe(24);
+    expect(MAX_PREFIX).toBe(16);
     const t = setup(Array.from({ length: MAX_PREFIX + 5 }, (_, i) => String(i % 10) as Option));
     t.runner.start(DISPLAY, WIRE);
     await until(t.runner, "capped");

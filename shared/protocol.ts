@@ -4,20 +4,22 @@
 export const OPTIONS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "-", "END"] as const;
 export type Option = (typeof OPTIONS)[number];
 
-export const MAX_PREFIX = 24;
+export const MAX_PREFIX = 16;
 export const MAX_EXPRESSION = 64;
 export const MAX_BODY = 1024;
 
 /** Emitted answer so far. Alphabet-bounded on purpose: Jev's malformed output must survive (§3.2). */
-export const PREFIX_RE = /^[0-9.-]{0,24}$/;
+export const PREFIX_RE = /^[0-9.-]{0,16}$/;
 
 /**
  * Wire expression grammar (§3.1): term (" " op " " term)*, term = "sqrt(" number ")" | number.
  * No length bound and no `mod` operand rules here: use isValidWireExpression for the full check.
  */
-/** Owner 2026-09-22: ≤ 12 digits per operand (the dot excluded). Mirrors MAX_NUMBER_DIGITS in shared/expression.ts. */
-export const MAX_OPERAND_DIGITS = 12;
-const NUM = String.raw`(?=\d{1,12}(?:\.\d{1,12})?(?![\d.]))(?=(?:\d\.?){1,12}(?![\d.]))\d+(?:\.\d+)?`;
+/** Owner 2026-09-22 (evening, "given its perf"): ≤ 8 digits per operand (the dot excluded), answer ≤ 16 chars. Mirrors MAX_NUMBER_DIGITS in shared/expression.ts. */
+export const MAX_OPERAND_DIGITS = 8;
+const D = MAX_OPERAND_DIGITS;
+// A number: digits with at most one dot, and at most D digits in total (dot excluded). Built from the constant so the cap lives once.
+const NUM = String.raw`(?=\d{1,${D}}(?:\.\d{1,${D}})?(?![\d.]))(?=(?:\d\.?){1,${D}}(?![\d.]))\d+(?:\.\d+)?`;
 const TERM = String.raw`(?:sqrt\(${NUM}\)|${NUM})`;
 export const WIRE_EXPRESSION_RE = new RegExp(String.raw`^${TERM}(?: (?:\+|-|\*|\/|mod) ${TERM})*$`);
 

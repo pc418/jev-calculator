@@ -57,8 +57,8 @@ describe("WIRE_EXPRESSION_RE", () => {
   });
 
   it("rejects 65 chars, accepts 64 (length checked by isValidWireExpression)", () => {
-    // 12-digit operands joined by " + " : 4 terms = 48 digits + 9 = 57, then "+ 1234" → 64 chars
-    const at64 = ["111111111111", "222222222222", "333333333333", "444444444444"].join(" + ") + " + 1234";
+    // 8-digit operands (cap) joined by " + ": 46 digits + 6 separators × 3 = 64 chars
+    const at64 = ["11111111", "22222222", "33333333", "44444444", "55555555", "66666", "7"].join(" + ");
     expect(at64).toHaveLength(64);
     expect(isValidWireExpression(at64)).toBe(true);
     const at65 = at64 + "5";
@@ -66,12 +66,12 @@ describe("WIRE_EXPRESSION_RE", () => {
     expect(isValidWireExpression(at65)).toBe(false);
   });
 
-  // PIN: owner 2026-09-22 — 12-digit operands are enforced server-side too (docs/260922-plan-jev-calculator.md §3.1);
+  // PIN: owner 2026-09-22 — operand digit cap enforced server-side too (docs/260922-plan-jev-calculator.md §3.1); 12 → 8 the same evening ("given its perf, limit digits to 8 and 16");
   // Codex review 2026-09-22 flagged the keypad/regex drift that let a scripted client send a 60-digit operand.
-  it.each(["123456789012", "123456.789012", "sqrt(123456789012)", "1.23456789012"])("accepts a 12-digit operand %j", (s) => {
+  it.each(["12345678", "1234.5678", "sqrt(12345678)", "1.2345678"])("accepts an 8-digit operand %j", (s) => {
     expect(WIRE_EXPRESSION_RE.test(s)).toBe(true);
   });
-  it.each(["1234567890123", "1234567.890123", "sqrt(1234567890123)", "1 + 1234567890123"])("rejects a 13-digit operand %j", (s) => {
+  it.each(["123456789", "12345.6789", "sqrt(123456789)", "1 + 123456789", "123456789012"])("rejects a 9+-digit operand %j", (s) => {
     expect(WIRE_EXPRESSION_RE.test(s)).toBe(false);
     expect(isValidWireExpression(s)).toBe(false);
   });

@@ -11,7 +11,7 @@ describe("minProductDigits", () => {
     ["007 * 5", 1],
     ["000 * 123456", 1],
     ["12 * 3 * 4", 2],
-    ["999999999999 * 999999999999", 23],
+    ["99999999 * 99999999", 15], // both operands at the 8-digit cap: 15 ≤ MAX_PREFIX 16, so END can be offered
     ["100 * 10", 4], // the bound is tight: 1000
     ["5 * 0", 1],
   ])("%j → %i", (wire, min) => {

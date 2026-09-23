@@ -11,7 +11,7 @@ Live: <https://jev-calculator.cloudflare-jjx3a.workers.dev>
 
 ## What you see
 
-- **Calculator card**: keypad with `+ − × ÷ mod √`, decimals, operands up to 12 digits, answers up to 24
+- **Calculator card**: keypad with `+ − × ÷ mod √`, decimals, operands up to 8 digits, answers up to 16
   characters. `=` starts a run, **Rerun** repeats the same expression so you can see the jitter between
   identical calls (the previous run stays visible as a ghost, with the first divergence marked).
 - **Model output (streaming)**: one column per emitted character. Rows are the 13 options; each pill's

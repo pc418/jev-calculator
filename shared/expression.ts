@@ -14,8 +14,8 @@ export type Token =
 
 export type Expression = readonly Token[];
 
-/** Owner 2026-09-22: at most 12 digits per number (both sides of the dot; the dot does not count). */
-export const MAX_NUMBER_DIGITS = 12;
+/** Owner 2026-09-22 (evening): at most 8 digits per number (both sides of the dot; the dot does not count). */
+export const MAX_NUMBER_DIGITS = 8;
 
 type Op = Extract<Token, { kind: "op" }>["op"];
 const OPS: readonly string[] = ["+", "-", "*", "/", "mod"];

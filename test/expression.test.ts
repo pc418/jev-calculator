@@ -120,27 +120,27 @@ describe("back / clear", () => {
 });
 
 describe("number and length caps", () => {
-  // PIN: owner 2026-09-22 — 12-digit operands, 24-char answer cap, docs/260922-plan-jev-calculator.md §3.1/§3.3
-  it("accepts the 12th digit and refuses the 13th; the dot does not count", () => {
-    expect(MAX_NUMBER_DIGITS).toBe(12);
-    const twelve = type(digits("123456789012"));
-    expect(toWire(twelve)).toBe("123456789012");
+  // PIN: owner 2026-09-22 — 8-digit operands, 16-char answer cap (was 12/24; "given its perf"), docs/260922-plan-jev-calculator.md §3.1/§3.3
+  it("accepts the 8th digit and refuses the 9th; the dot does not count", () => {
+    expect(MAX_NUMBER_DIGITS).toBe(8);
+    const twelve = type(digits("12345678"));
+    expect(toWire(twelve)).toBe("12345678");
     expect(press(twelve, "3")).toBeNull();
 
-    const dec = type(digits("123456.789012"));
-    expect(toWire(dec)).toBe("123456.789012");
+    const dec = type(digits("1234.5678"));
+    expect(toWire(dec)).toBe("1234.5678");
     expect(isComplete(dec)).toBe(true);
     expect(press(dec, "3")).toBeNull();
 
     // the cap is per number: the next operand starts fresh
-    expect(toWire(type(["+", ...digits("123456789012")], twelve))).toBe("123456789012 + 123456789012");
+    expect(toWire(type(["+", ...digits("12345678")], twelve))).toBe("12345678 + 12345678");
   });
 
   it("refuses growth past MAX_EXPRESSION on the wire string, and never strands an uncompletable state", () => {
-    // "123456789012 + " × 4 + "123456789012" = 12*5 + 3*4 = 72 > 64, so the cap bites mid-way.
+    // "12345678 + " × 7 = 11*7 = 77 > 64, so the cap bites mid-way.
     let e: Expression = [];
     const seq: Key[] = [];
-    for (let i = 0; i < 5; i++) seq.push(...digits("123456789012"), "+");
+    for (let i = 0; i < 7; i++) seq.push(...digits("12345678"), "+");
     let refused: Key | undefined;
     for (const k of seq) {
       const next = press(e, k);
@@ -160,7 +160,7 @@ describe("number and length caps", () => {
   });
 
   it("allows back after the cap", () => {
-    const e = type([...digits("123456789012"), "+", ...digits("1")]);
+    const e = type([...digits("12345678"), "+", ...digits("1")]);
     expect(press(e, "back")).not.toBeNull();
   });
 });
